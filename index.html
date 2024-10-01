@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Converse com o assistente da Netflix</title>
+    <link rel="stylesheet" type="text/css" href="css/index.css" media="screen" />
+    <script src="js/index.js" type="text/js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script type="importmap">
+        {
+          "imports": {
+            "@google/generative-ai": "https://esm.run/@google/generative-ai"
+          }
+        }
+    </script>
+</head>
+
+<body>
+    <header>
+        <h1>Converse com o assistente da Netflix!</h1>
+    </header>
+    <form>
+        <div id="triangulocima"></div>
+        <article id="conversa"></article>
+        <p>
+            Digite sua consulta:
+            <input class="escrever" type="text" id="prompt" name="prompt" required="required"><br>
+        </p>
+        <div id="triangulobaixo"></div>
+    </form>
+    <script type="module">
+        import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+
+        const apiKey = "AIzaSyDfs7FU2fvYRhu_KyUTh3WrvxOYXjqHY5g";
+        const genAI = new GoogleGenerativeAI(apiKey);
+
+        const model = genAI.getGenerativeModel({
+            model: "gemini-1.5-flash",
+        });
+
+        const generationConfig = {
+            temperature: 1,
+            topP: 0.95,
+            topK: 64,
+            maxOutputTokens: 8192,
+            responseMimeType: "text/plain",
+        };
+
+        document.querySelector('form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const promptInput = document.getElementById('prompt');
+            const userMessage = promptInput.value.trim();
+
+            if (userMessage) {
+                // Exibir a mensagem do usuário
+
+                const conversa = document.getElementById('conversa');
+                const userMessageElem = document.createElement('p');
+
+                // Criar um elemento para o texto em negrito
+                const boldTexto = document.createElement('strong');
+                boldTexto.textContent = 'Você:';
+
+                // Criar um elemento para o restante da mensagem
+                const normalTexto = document.createTextNode(` ${userMessage}`);
+
+                // Adicionar os elementos ao parágrafo
+                userMessageElem.appendChild(boldTexto);
+                userMessageElem.appendChild(normalTexto);
+
+                conversa.appendChild(userMessageElem);
+
+
+                // Enviar para o modelo de IA
+                const chatSession = model.startChat({
+                    generationConfig,
+                    history: [
+                        {
+                            role: "user",
+                            parts: [
+                                { text: "Você é um atendente da Netflix e pode falar sobre filmes e séries presentes na plataforma Netflix. Responda apenas perguntas relacionadas a isso (não use letras em negrito)." },
+                            ],
+                        },
+                        {
+                            role: "user",
+                            parts: [
+                                { text: userMessage },
+                            ],
+                        }
+                    ],
+                });
+
+                const resultado = await chatSession.sendMessage(userMessage);
+
+               if (resultado?.safetyAttributes?.blocked) {
+                    console.error('Mensagem bloqueada devido a política de segurança');
+                    const errorMessageElem = document.createElement('p');
+                    errorMessageElem.textContent = 'Desculpe, não posso ajudar com essa pergunta.';
+                    conversa.appendChild(errorMessageElem);
+                    return;
+                }
+
+                if (resultado?.safetyAttributes?.blocked) {
+                    console.error('Mensagem bloqueada devido a política de segurança');
+                    return;
+                }
+
+                const result = await chatSession.sendMessage(userMessage);
+                const botMessage = result.response.text();
+
+
+                const botMessageElem = document.createElement('p');
+
+                const boldText = document.createElement('strong');
+                boldText.textContent = 'Assistente:';
+
+                const normalText = document.createTextNode(` ${botMessage}`);
+
+
+                botMessageElem.appendChild(boldText);
+                botMessageElem.appendChild(normalText);
+
+                conversa.appendChild(botMessageElem);
+
+                try {
+                    await axios.post('/.netlify/functions/saveChatHistory', {
+                        user: "Usuário",
+                        message: `Pergunta: ${userMessage}, Resposta: ${botMessage}`
+                    });
+
+                    console.log('Histórico salvo com sucesso');
+                } catch (error) {
+                    console.error('Erro ao salvar o histórico:', error);
+                } promptInput.value = '';
+            }
+        });
+               
+    </script>
+</body>
+
+</html>
